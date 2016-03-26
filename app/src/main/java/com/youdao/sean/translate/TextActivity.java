@@ -3,16 +3,22 @@ package com.youdao.sean.translate;
 import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Xml;
 import android.view.View;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.android.volley.AuthFailureError;
+import com.android.volley.NetworkResponse;
+import com.android.volley.ParseError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
+import com.android.volley.toolbox.HttpHeaderParser;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 
@@ -30,8 +36,13 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 public class TextActivity extends AppCompatActivity {
@@ -40,10 +51,7 @@ public class TextActivity extends AppCompatActivity {
     private Button goButton;
     private TextView resultContent;
 
-    private final String urlAddress = "http://api.fanyi.baidu.com/api/trans/vip/translate?";
-    private final String appid = "20160128000009646";
-    private final String code = "Cwz96rkC8UzQtO7vsXeD";
-    private final String autoLanguage = "auto";
+    private final String urlAddress = "http://fanyi.youdao.com/openapi.do?keyfrom=translatetion&key=660729186&type=data&doctype=json&version=1.1&q=";
 
     private RequestQueue mQueue;
 
@@ -63,18 +71,13 @@ public class TextActivity extends AppCompatActivity {
             public void onClick(View v) {
 
                 String word = rawContent.getText().toString();
-                Random random = new Random();
-                int s = random.nextInt(65536)%(65536-32768+1) + 32768;
-                String salt = s+"";
-                String rawSign = appid+word+salt+code;
-                String sign = null;
+
                 try {
-                    sign = getMD5(rawSign.getBytes("UTF-8"));
+                    word = URLEncoder.encode(word, "utf-8"); //先对中文进行UTF-8编码
                 } catch (UnsupportedEncodingException e) {
                     e.printStackTrace();
                 }
-
-                String query = urlAddress+"q="+word+"&from="+autoLanguage+"&to="+autoLanguage+"&appid="+appid+"&salt="+salt+"&sign="+sign;
+                String query = urlAddress + word;
                 System.out.println(query);
                 readResult(query);
 
@@ -84,20 +87,34 @@ public class TextActivity extends AppCompatActivity {
     }
 
     public void readResult(String url) {
-        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url,
+        JsonObjectRequest jsonObjectRequest = new CharsetJsonRequest(Request.Method.GET, url, null,
                         new Response.Listener<JSONObject>() {
                             @Override
                             public void onResponse(JSONObject response) {
-                                System.out.println(response.toString());
+                                String resp = "";
+                                try {
+                                    resp = URLDecoder.decode(response.toString(), "UTF-8");
+                                    System.out.println(resp);
+                                    System.out.println(response.toString());
+                                } catch (UnsupportedEncodingException e) {
+                                    e.printStackTrace();
+                                }
+                                //System.out.println(resp);
 
                                 try {
-                                    JSONArray jsonArray = response.getJSONArray("trans_result");
-                                    JSONObject object = jsonArray.getJSONObject(0);
-                                    String result = object.getString("dst");
+                                    String errcode = response.getString("errorCode");
+                                    if (Integer.parseInt(errcode) != 0) {
+                                        Toast.makeText(TextActivity.this, "error, please try again",
+                                                Toast.LENGTH_LONG).show();
+                                    } else {
+                                        String direct_translation = response.getString("translation");
+                                        direct_translation = direct_translation.replace("\"","");
+                                        direct_translation = direct_translation.replace("[", "");
+                                        direct_translation = direct_translation.replace("]", "");
+                                        resultContent.setText(direct_translation);
+                                        System.out.println(direct_translation);
 
-                                    System.out.println(result);
-
-                                    resultContent.setText(result);
+                                    }
                                 } catch (JSONException e) {
                                     e.printStackTrace();
                                 }
@@ -127,31 +144,5 @@ public class TextActivity extends AppCompatActivity {
         }
     }*/
 
-    public static String getMD5(byte[] source) {
-        String s = null;
-        char [] hexDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8',
-                '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-        final int temp = 0xf;
-        final int arraySize = 32;
-        final int strLen = 16;
-        final int offset = 4;
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest
-                    .getInstance("MD5");
-            md.update(source);
-            byte [] tmp = md.digest();
-            char [] str = new char[arraySize];
-            int k = 0;
-            for (int i = 0; i < strLen; i++) {
-                byte byte0 = tmp[i];
-                str[k++] = hexDigits[byte0 >>> offset & temp];
-                str[k++] = hexDigits[byte0 & temp];
-            }
-            s = new String(str);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return s;
-    }
 
 }
