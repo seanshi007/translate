@@ -9,6 +9,12 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.iflytek.cloud.ErrorCode;
 import com.iflytek.cloud.InitListener;
 import com.iflytek.cloud.RecognizerListener;
@@ -22,7 +28,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+
 public class VoiceActivity extends AppCompatActivity {
+    private final String urlAddress = "http://fanyi.youdao.com/openapi.do?keyfrom=translatetion&key=660729186&type=data&doctype=json&version=1.1&q=";
+
     private static String TAG = VoiceActivity.class.getSimpleName();
     // 语音听写对象
     private SpeechRecognizer mIat;
@@ -30,7 +42,11 @@ public class VoiceActivity extends AppCompatActivity {
     private Toast mToast;
 
     private Button chinese;
-    private TextView tvChinese;
+    private TextView tvSpeek;
+    private TextView tvResult;
+    private Button english;
+
+    private RequestQueue mQueue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,15 +61,38 @@ public class VoiceActivity extends AppCompatActivity {
         mIat = SpeechRecognizer.createRecognizer(VoiceActivity.this, mInitListener);
 
         chinese = (Button) findViewById(R.id.Chinese);
-        tvChinese = (TextView) findViewById(R.id.tvChinese);
+        english = (Button) findViewById(R.id.English);
+        tvSpeek = (TextView) findViewById(R.id.tvSpeek);
+        tvResult = (TextView) findViewById(R.id.tvVoiceResult);
+
+        mQueue = Volley.newRequestQueue(this);
 
         chinese.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
                     Log.d("Pressed", "Button pressed");
-                    setParam();
+                    setCNParam();
 
+                    int ret = mIat.startListening(mRecognizerListener);
+                    System.out.println("start listening:" + ret);
+                } else if (event.getAction() == MotionEvent.ACTION_UP) {
+
+                    Log.d("Released", "Button released");
+                    mIat.stopListening();
+                }
+                // TODO Auto-generated method stub
+                return true;
+            }
+        });
+
+        english.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    Log.d("Pressed", "Button pressed");
+                    setENParam();
                     int ret = mIat.startListening(mRecognizerListener);
                     System.out.println("start listening:" + ret);
                 } else if (event.getAction() == MotionEvent.ACTION_UP) {
@@ -137,7 +176,13 @@ public class VoiceActivity extends AppCompatActivity {
 
                     System.out.println(ans);
 
-                    tvChinese.setText(ans);
+                    tvSpeek.setText(ans);
+                    try {
+                        ans = URLEncoder.encode(ans, "utf-8"); //先对中文进行UTF-8编码
+                    } catch (UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                    }
+                    readResult(urlAddress+ans);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -161,14 +206,66 @@ public class VoiceActivity extends AppCompatActivity {
         }
     };
 
-    public void setParam() {
+    public void setCNParam() {
         // 清空参数
-        //mIat.setParameter(SpeechConstant.PARAMS, null);
+        mIat.setParameter(SpeechConstant.PARAMS, null);
 
         mIat.setParameter(SpeechConstant.DOMAIN, "iat");
         // 设置语言
         mIat.setParameter(SpeechConstant.LANGUAGE, "zh_cn");
         // 设置语言区域
         mIat.setParameter(SpeechConstant.ACCENT, "mandarin");
+    }
+
+    public void setENParam() {
+        // 清空参数
+        mIat.setParameter(SpeechConstant.PARAMS, null);
+
+        mIat.setParameter(SpeechConstant.DOMAIN, "iat");
+        // 设置语言
+        mIat.setParameter(SpeechConstant.LANGUAGE, "en_us");
+        // 设置语言区域
+        mIat.setParameter(SpeechConstant.ACCENT, "mandarin");
+    }
+
+    public void readResult(String url) {
+        JsonObjectRequest jsonObjectRequest = new CharsetJsonRequest(Request.Method.GET, url, null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        String resp = "";
+                        try {
+                            resp = URLDecoder.decode(response.toString(), "UTF-8");
+                            System.out.println(resp);
+                            System.out.println(response.toString());
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                        }
+                        //System.out.println(resp);
+
+                        try {
+                            String errcode = response.getString("errorCode");
+                            if (Integer.parseInt(errcode) != 0) {
+                                Toast.makeText(VoiceActivity.this, "error, please try again",
+                                        Toast.LENGTH_LONG).show();
+                            } else {
+                                String direct_translation = response.getString("translation");
+                                direct_translation = direct_translation.replace("\"","");
+                                direct_translation = direct_translation.replace("[", "");
+                                direct_translation = direct_translation.replace("]", "");
+                                tvResult.setText(direct_translation);
+                                System.out.println(direct_translation);
+
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError arg0) {
+            }
+        });
+        mQueue.add(jsonObjectRequest);
     }
 }
