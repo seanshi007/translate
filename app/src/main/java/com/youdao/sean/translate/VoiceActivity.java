@@ -129,6 +129,8 @@ public class VoiceActivity extends AppCompatActivity {
      */
     private RecognizerListener mRecognizerListener = new RecognizerListener() {
 
+        String voiceResult = "";
+
         @Override
         public void onBeginOfSpeech() {
             // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
@@ -155,10 +157,32 @@ public class VoiceActivity extends AppCompatActivity {
             System.out.println("结果是：");
             System.out.println(results.toString());
 
+            if (!isLast) {
+                String ans = "";
+                try {
+                    JSONObject result = new JSONObject(results.getResultString());
+                    JSONArray jsonArray = result.getJSONArray("ws");
+                    for (int i = 0; i < jsonArray.length(); i++) {
+                        JSONObject object = jsonArray.getJSONObject(i);
+                        JSONArray array = object.getJSONArray("cw");
+                        for (int j = 0; j < array.length(); j++) {
+                            JSONObject obj = array.getJSONObject(j);
+                            System.out.println(obj);
+                            String tmp = obj.getString("w");
+                            ans = ans + tmp;
+                        }
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                System.out.println(ans);
+                voiceResult += ans;
+            }
+
             if (isLast) {
                 System.out.println("in last");
                 System.out.println(results.getResultString());
-                // TODO 最后的结果
+
                 String ans = "";
                 try {
                     JSONObject result = new JSONObject(results.getResultString());
@@ -176,13 +200,15 @@ public class VoiceActivity extends AppCompatActivity {
 
                     System.out.println(ans);
 
-                    tvSpeek.setText(ans);
+                    voiceResult += ans;
+                    tvSpeek.setText(voiceResult);
                     try {
-                        ans = URLEncoder.encode(ans, "utf-8"); //先对中文进行UTF-8编码
+                        ans = URLEncoder.encode(voiceResult, "utf-8"); //先对中文进行UTF-8编码
                     } catch (UnsupportedEncodingException e) {
                         e.printStackTrace();
                     }
                     readResult(urlAddress+ans);
+                    voiceResult = "";
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
